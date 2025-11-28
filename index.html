@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS Portfolio: N-Body Gravity Simulator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Three.js (r128) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background for space theme */
+            color: #e2e8f0;
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars for full screen effect */
+        }
+        #simulator-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+        /* New Frosted Glass Panel Style */
+        .frosted-panel {
+            background-color: rgba(36, 47, 65, 0.9); /* Slightly lighter, more opaque dark gray */
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); /* Bolder shadow */
+            border: 1px solid rgba(113, 128, 150, 0.3); /* Subtle light border */
+            transition: all 0.3s ease;
+        }
+
+        #controls-panel {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 10;
+            max-width: 300px;
+        }
+        canvas {
+            display: block;
+        }
+        /* New styles for Explanation Panel: Moved to Bottom Center */
+        #explanation-panel {
+            position: absolute;
+            bottom: 1rem; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            max-width: 650px; /* Wider for bottom placement */
+        }
+        /* Make it slightly more compact on mobile */
+        @media (max-width: 768px) {
+            #explanation-panel {
+                max-width: 95vw;
+                padding: 1rem;
+                bottom: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Visualization Area (Three.js will render here) -->
+    <div id="simulator-container"></div>
+
+    <!-- Tooltip Element for Body Stats (New Feature) -->
+    <div id="body-tooltip" class="absolute bg-gray-900 text-white text-xs p-2 rounded shadow-xl pointer-events-none opacity-0 transition-opacity duration-200" style="z-index: 100;">
+        <!-- Content will be injected here -->
+    </div>
+    
+    <!-- Controls Panel (Tailwind UI - Top Right) -->
+    <div id="controls-panel" class="frosted-panel p-4 rounded-xl">
+        <h2 class="text-xl font-bold mb-3 text-indigo-400">N-Body 3D Simulator</h2>
+        <p class="text-sm mb-4 text-gray-400">
+            จำลองปฏิสัมพันธ์แรงโน้มถ่วงระหว่างวัตถุหลายชิ้น (N-Body Problem)
+        </p>
+
+        <div class="space-y-3">
+            <button id="reset-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg transition duration-150 transform hover:scale-105 shadow-xl">
+                รีเซ็ตฉาก (Random System)
+            </button>
+
+            <div class="flex items-center justify-between">
+                <label for="num-bodies" class="text-sm font-medium">จำนวนวัตถุ:</label>
+                <input type="number" id="num-bodies" value="10" min="2" max="50" class="w-20 bg-gray-700 border border-gray-600 rounded-md text-right p-1 text-sm">
+            </div>
+
+            <div class="flex items-center justify-between">
+                <label for="g-constant" class="text-sm font-medium">ค่าคงที่ G:</label>
+                <input type="number" id="g-constant" value="0.001" step="0.0001" class="w-20 bg-gray-700 border border-gray-600 rounded-md text-right p-1 text-sm">
+            </div>
+
+            <p class="text-xs text-yellow-400 pt-2">
+                วิธีใช้: คลิกเมาส์ค้างและลากเพื่อหมุนมุมกล้อง |
+                เลื่อนเพื่อซูม | **ชี้เมาส์ที่วัตถุเพื่อดูข้อมูล**
+            </p>
+        </div>
+    </div>
+
+    <!-- Project Explanation Panel (Bottom Center) -->
+    <div id="explanation-panel" class="frosted-panel p-5 rounded-xl transition-all duration-300">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xl font-bold text-white">วัตถุประสงค์ของโครงการ (Portfolio Project)</h3>
+            <button id="toggle-explanation-btn" class="bg-gray-700 hover:bg-gray-600 text-white text-xs py-1 px-3 rounded-lg transition duration-150">
+                ย่อ
+            </button>
+        </div>
+        <!-- Content wrapper, hidden class is toggled by JavaScript -->
+        <div id="explanation-content" class="overflow-hidden transition-all duration-300"> 
+            <p class="text-sm text-indigo-400 font-semibold mb-2 text-center">
+                โครงการนี้สร้างขึ้นเพื่อแสดงศักยภาพด้านการจำลองทางฟิสิกส์ สำหรับประกอบการยื่นพอร์ตโฟลิโอเข้ามหาวิทยาลัย
+            </p>
+            <p class="text-sm text-gray-300 mb-2 text-center">
+                การจำลองนี้ใช้หลักการ **N-Body Problem** เพื่อคำนวณปฏิสัมพันธ์แรงโน้มถ่วงระหว่างวัตถุหลายชิ้นแบบ Real-Time ในระบบ 3 มิติ
+            </p>
+            <div class="text-sm text-gray-300 mt-4">
+                <h4 class="font-medium text-white text-center mb-1">ความสามารถทางเทคนิคที่โปรเจกต์แสดง:</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 p-0">
+                    <p class="bg-gray-700 p-2 rounded-lg text-center font-mono text-xs">Computer Graphics (Three.js)</p>
+                    <p class="bg-gray-700 p-2 rounded-lg text-center font-mono text-xs">Numerical Methods (Euler Integration)</p>
+                    <p class="bg-gray-700 p-2 rounded-lg text-center font-mono text-xs">Physics Simulation (Newton's Laws)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global Variables and Three.js Setup ---
+        const container = document.getElementById('simulator-container');
+        const numBodiesInput = document.getElementById('num-bodies');
+        const gConstantInput = document.getElementById('g-constant');
+        const resetBtn = document.getElementById('reset-btn');
+        
+        // New elements for explanation panel
+        const toggleExplanationBtn = document.getElementById('toggle-explanation-btn');
+        const explanationContent = document.getElementById('explanation-content');
+        
+        // Tooltip elements and setup (New)
+        const bodyTooltip = document.getElementById('body-tooltip');
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let INTERSECTED = null; // To track the currently hovered object
+
+        let scene, camera, renderer;
+        let bodies = [];
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        
+        // Simulation parameters
+        const SIM_SCALE = 100; // Scale factor for initial positions
+        var G = parseFloat(gConstantInput.value); // ใช้ 'var' เพื่อหลีกเลี่ยงการประกาศซ้ำใน Global Scope
+        var NUM_BODIES = parseInt(numBodiesInput.value); // ใช้ 'var' เพื่อหลีกเลี่ยงการประกาศซ้ำใน Global Scope
+        const TIMESTEP = 0.01; // Integration step (Δt)
+
+        // --- 1. Body Class (Data Structure) ---
+        class Body {
+            constructor(mass, pos, vel, color) {
+                this.mass = mass;
+                this.position = pos; // THREE.Vector3
+                this.velocity = vel; // THREE.Vector3
+                this.mesh = this.createMesh(color);
+                this.force = new THREE.Vector3(); // Total force container
+            }
+
+            createMesh(color) {
+                const geometry = new THREE.SphereGeometry(Math.cbrt(this.mass) * 0.5, 16, 16); // Radius proportional to cube root of mass
+                // เปลี่ยนเป็น MeshPhongMaterial เพื่อให้ตอบสนองต่อแสงสว่าง (Shading/Highlights)
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: color, 
+                    specular: 0xeeeeee, // สีไฮไลท์ (ความมันวาว)
+                    shininess: 100 // ระดับความมันวาว (Glossiness)
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.copy(this.position);
+                return mesh;
+            }
+
+            // Integrates velocity and position (Euler Method)
+            update() {
+                // Acceleration = Force / Mass
+                const acceleration = this.force.clone().divideScalar(this.mass);
+                
+                // V_new = V_old + a * Δt
+                this.velocity.add(acceleration.multiplyScalar(TIMESTEP));
+
+                // P_new = P_old + V * Δt
+                this.position.add(this.velocity.clone().multiplyScalar(TIMESTEP));
+                
+                // Update the 3D mesh position
+                this.mesh.position.copy(this.position);
+            }
+        }
+
+        // --- 2. Initial Setup and Reset Functions ---
+
+        function initScene() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a202c); // Dark space color
+
+            // Lights: เพิ่มแสงสว่าง
+            // 1. Ambient Light (แสงโดยรอบ, ให้แสงสว่างเท่ากันหมด)
+            const ambientLight = new THREE.AmbientLight(0x404040, 5); 
+            scene.add(ambientLight);
+
+            // 2. Directional Light (แสงมีทิศทาง, เพื่อสร้างเงาและมิติ)
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 3);
+            directionalLight.position.set(0, 100, 100);
+            scene.add(directionalLight);
+
+            // 3. Grid Helper: เพิ่มตารางอ้างอิง
+            const gridHelper = new THREE.GridHelper(SIM_SCALE * 3, 20, 0x303030, 0x303030);
+            scene.add(gridHelper);
+
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 2 * SIM_SCALE; // Start distance
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+        }
+        
+        function setupRandomSystem() {
+            // Remove old bodies from the scene
+            bodies.forEach(b => scene.remove(b.mesh));
+            bodies = [];
+
+            // Generate new bodies
+            for (let i = 0; i < NUM_BODIES; i++) {
+                // Random Mass (1 to 100)
+                const mass = Math.random() * 99 + 1;
+                
+                // Random Position within a scaled cube
+                const pos = new THREE.Vector3(
+                    (Math.random() * 2 - 1) * SIM_SCALE * 0.2,
+                    (Math.random() * 2 - 1) * SIM_SCALE * 0.2,
+                    (Math.random() * 2 - 1) * SIM_SCALE * 0.2
+                );
+                
+                // Random Initial Velocity (small magnitude for stable orbits)
+                const vel = new THREE.Vector3(
+                    (Math.random() * 2 - 1) * 0.5,
+                    (Math.random() * 2 - 1) * 0.5,
+                    (Math.random() * 2 - 1) * 0.5
+                );
+                
+                // Random Color
+                const color = new THREE.Color(Math.random(), Math.random(), Math.random());
+                
+                const body = new Body(mass, pos, vel, color.getHex());
+                bodies.push(body);
+                scene.add(body.mesh);
+            }
+        }
+
+        // --- 3. Physics Simulation Core (N-Body Calculation) ---
+        
+        function calculateForces() {
+            // 1. Reset forces for all bodies
+            bodies.forEach(b => b.force.set(0, 0, 0));
+
+            // 2. Iterate through all unique pairs (i, j)
+            for (let i = 0; i < bodies.length; i++) {
+                const bodyI = bodies[i];
+                for (let j = i + 1; j < bodies.length; j++) {
+                    const bodyJ = bodies[j];
+
+                    // Calculate the vector (direction) from I to J
+                    const direction = bodyJ.position.clone().sub(bodyI.position);
+                    
+                    // Calculate the distance squared (r^2)
+                    const distanceSq = direction.lengthSq();
+                    
+                    // Add a small epsilon to prevent division by zero or extreme forces
+                    const minDistanceSq = 0.5 * 0.5;
+                    const clampedDistanceSq = Math.max(distanceSq, minDistanceSq);
+                    
+                    // Calculate the magnitude of the force (F = G * (m1*m2) / r^2)
+                    const forceMagnitude = (G * bodyI.mass * bodyJ.mass) / clampedDistanceSq;
+                    
+                    // Normalize the direction vector and scale it by the magnitude
+                    const forceVector = direction.normalize().multiplyScalar(forceMagnitude);
+                    
+                    // Apply the force:
+                    // Force on I is F_ij
+                    bodyI.force.add(forceVector);
+                    // Force on J is -F_ij (Newton's Third Law)
+                    bodyJ.force.sub(forceVector);
+                }
+            }
+        }
+        
+        function updateSimulation() {
+            calculateForces();
+            bodies.forEach(b => b.update());
+        }
+
+        // --- 4. Animation Loop and Rendering ---
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Run physics simulation step
+            updateSimulation();
+
+            // Render the scene from the camera's perspective
+            renderer.render(scene, camera);
+        }
+
+        // --- 5. User Interaction (Camera Control and Tooltip) ---
+        
+        function updateTooltip(body, screenX, screenY) {
+            const massString = body.mass.toFixed(2);
+            const posString = `(${body.position.x.toFixed(1)}, ${body.position.y.toFixed(1)}, ${body.position.z.toFixed(1)})`;
+            const velString = `(${body.velocity.x.toFixed(1)}, ${body.velocity.y.toFixed(1)}, ${body.velocity.z.toFixed(1)})`;
+
+            bodyTooltip.innerHTML = `
+                <span class="font-bold text-indigo-300">Body Stats</span>
+                <hr class="my-1 border-gray-700">
+                มวล (Mass): <span class="font-mono text-yellow-300">${massString}</span><br>
+                ตำแหน่ง (Pos): <span class="font-mono text-green-300">${posString}</span><br>
+                ความเร็ว (Vel): <span class="font-mono text-red-300">${velString}</span>
+            `;
+            
+            // Position the tooltip near the mouse cursor
+            bodyTooltip.style.left = `${screenX + 15}px`;
+            bodyTooltip.style.top = `${screenY - 10}px`;
+            bodyTooltip.style.opacity = '1';
+        }
+
+        function hideTooltip() {
+            bodyTooltip.style.opacity = '0';
+        }
+
+        function raycastForTooltip(screenX, screenY) {
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Get all visible meshes that are bodies
+            const intersectMeshes = bodies.map(b => b.mesh);
+            const intersects = raycaster.intersectObjects(intersectMeshes);
+
+            if (intersects.length > 0) {
+                if (INTERSECTED !== intersects[0].object) {
+                    INTERSECTED = intersects[0].object;
+                    // Find the corresponding Body object
+                    const body = bodies.find(b => b.mesh === INTERSECTED);
+
+                    // Update tooltip content and position
+                    if (body) {
+                        updateTooltip(body, screenX, screenY);
+                    }
+                }
+            } else {
+                if (INTERSECTED) {
+                    hideTooltip();
+                }
+                INTERSECTED = null;
+            }
+        }
+
+        function onMouseDown(event) {
+            isDragging = true;
+            previousMousePosition.x = event.clientX;
+            previousMousePosition.y = event.clientY;
+            hideTooltip(); // ซ่อน Tooltip ขณะลาก
+        }
+
+        function onMouseMove(event) {
+            // 1. Raycasting (คำนวณตำแหน่งเมาส์และเรียก Raycasting เสมอ)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            
+            if (event.touches) { // รองรับ Touch Event ด้วย
+                raycastForTooltip(event.touches[0].clientX, event.touches[0].clientY);
+            } else {
+                raycastForTooltip(event.clientX, event.clientY);
+            }
+
+            // 2. Rotation logic (เฉพาะเมื่อมีการลากเมาส์)
+            if (!isDragging) return;
+
+            const deltaX = event.clientX - previousMousePosition.x;
+            const deltaY = event.clientY - previousMousePosition.y;
+
+            // Sensitivity factor (lower is less sensitive)
+            const rotationSpeed = 0.005;
+
+            // Rotate the camera around the origin
+            const quaternion = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(0, 1, 0), // Axis Y
+                -deltaX * rotationSpeed
+            );
+            camera.position.applyQuaternion(quaternion);
+            camera.up.applyQuaternion(quaternion);
+
+            // Create a quaternion for rotation around the X-axis (pitch)
+            const pitchQuaternion = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(1, 0, 0), // Axis X
+                -deltaY * rotationSpeed
+            );
+            camera.position.applyQuaternion(pitchQuaternion);
+            camera.up.applyQuaternion(pitchQuaternion);
+
+            // Always look at the center
+            camera.lookAt(new THREE.Vector3(0, 0, 0)); 
+
+            previousMousePosition.x = event.clientX;
+            previousMousePosition.y = event.clientY;
+        }
+
+        function onMouseUp() {
+            isDragging = false;
+        }
+
+        function onWheel(event) {
+            event.preventDefault(); // Prevent page scroll
+            // Move camera closer/further from the center
+            camera.position.multiplyScalar(1 - event.deltaY * 0.001); 
+            camera.lookAt(new THREE.Vector3(0, 0, 0));
+        }
+
+        // --- 6. Event Listeners and Initialization ---
+
+        // Function to handle toggling the explanation panel
+        function toggleExplanation() {
+            const isCollapsed = explanationContent.classList.contains('hidden');
+            if (isCollapsed) {
+                // EXPAND
+                explanationContent.classList.remove('hidden');
+                toggleExplanationBtn.textContent = 'ย่อ';
+            } else {
+                // COLLAPSE
+                explanationContent.classList.add('hidden');
+                toggleExplanationBtn.textContent = 'ขยาย';
+            }
+        }
+        
+        // Add listener for the toggle button
+        toggleExplanationBtn.addEventListener('click', toggleExplanation);
+
+
+        function onWindowResize() {
+            if (!renderer || !camera) return; // เพิ่ม Check เพื่อป้องกัน Error ก่อน init
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Listeners for UI controls (These can be set immediately)
+        resetBtn.addEventListener('click', () => {
+            NUM_BODIES = parseInt(numBodiesInput.value);
+            G = parseFloat(gConstantInput.value);
+            setupRandomSystem();
+        });
+
+        numBodiesInput.addEventListener('change', (e) => {
+             NUM_BODIES = parseInt(e.target.value);
+        });
+
+        gConstantInput.addEventListener('change', (e) => {
+             G = parseFloat(e.target.value);
+        });
+        
+        // Function to register listeners that depend on Three.js objects
+        function addInteractionListeners() {
+            window.addEventListener('resize', onWindowResize, false);
+
+            // Add mouse/touch controls for camera movement
+            renderer.domElement.addEventListener('mousedown', onMouseDown, false);
+            renderer.domElement.addEventListener('mousemove', onMouseMove, false);
+            renderer.domElement.addEventListener('mouseup', onMouseUp, false);
+            renderer.domElement.addEventListener('wheel', onWheel, false);
+            
+            // Handle touch events for mobile
+            renderer.domElement.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    onMouseDown({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY, touches: e.touches });
+                }
+            }, false);
+            
+            renderer.domElement.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 1) {
+                    onMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY, touches: e.touches });
+                    previousMousePosition.x = e.touches[0].clientX;
+                    previousMousePosition.y = e.touches[0].clientY;
+                }
+            }, false);
+            
+            renderer.domElement.addEventListener('touchend', onMouseUp, false);
+        }
+
+
+        // Start the application (Ensures initScene runs first)
+        window.onload = function () {
+            initScene();
+            addInteractionListeners(); // ลงทะเบียน Listener หลัง renderer ถูกสร้าง
+            setupRandomSystem();
+            animate();
+        };
+
+    </script>
+</body>
+</html>
